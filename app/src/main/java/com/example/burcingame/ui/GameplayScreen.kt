@@ -30,6 +30,7 @@ import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.scale
 import androidx.compose.ui.graphics.drawscope.translate
+import androidx.compose.ui.graphics.drawscope.withTransform
 import androidx.compose.ui.input.key.*
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -440,7 +441,7 @@ fun GameplayScreen(
         }
     }
 
-    // [UI Layout] Kök Box container
+    // [UI Layout] Kök Box container (Edge-to-Edge Tam Ekran)
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -450,416 +451,424 @@ fun GameplayScreen(
             .onKeyEvent { event ->
                 gameEngine.handleKeyEvent(event)
             }
-            .padding(24.dp) // [UI Property / Spacing] İç kenar boşlukları (24 dp)
     ) {
-        Column(
-            modifier = Modifier.fillMaxSize(),
-            verticalArrangement = Arrangement.SpaceBetween
-        ) {
-            // [UI Layout] TV-Optimize Edilmiş HUD (Üst Bilgi Çubuğu)
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                // [UI Component] Bölüm ve Can Gösterge Paneli Surface
-                Surface(
-                    color = Color(0xFF1F4068).copy(alpha = 0.85f),
-                    shape = RoundedCornerShape(12.dp),
-                    border = BorderStroke(1.5.dp, Color(0xFFFFE66D))
-                ) {
-                    Row(
-                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
-                        horizontalArrangement = Arrangement.spacedBy(16.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            text = "🌈 Bölüm $level",
-                            fontSize = 18.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = Color(0xFFFFE66D)
-                        )
-                        Text(
-                            text = "Can: ${"❤️".repeat(lives)}",
-                            fontSize = 18.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = Color.White
+        // [UI Component] Tam Ekran Büyütülmüş ve Ortalanmış Canvas Oyun Tahtası
+        Canvas(modifier = Modifier.fillMaxSize()) {
+            val width = gameEngine.worldWidth
+            val height = gameEngine.worldHeight
+
+            // [Full Screen Auto Scaling & Centering] Ekran çözünürlüğüne göre platformları büyütüp tam ekran ortalama
+            val scale = maxOf(size.width / 1920f, size.height / 1080f)
+            val offsetX = (size.width - 1920f * scale) / 2f
+            val offsetY = (size.height - 1080f * scale) / 2f
+
+            withTransform({
+                translate(left = offsetX, top = offsetY)
+                scale(scale, scale, pivot = Offset.Zero)
+                translate(left = -cameraX, top = -cameraY)
+            }) {
+
+                // 1. Çok Duraklı Gökkuşağı Degrade Gökyüzü (Sky Brush spanning 3000f world width)
+                val skyBrush = Brush.verticalGradient(
+                    colors = listOf(
+                        Color(0xFF240046), // [Color] Koyu İndigo
+                        Color(0xFF3C096C), // [Color] Mor
+                        Color(0xFF560BAD), // [Color] Menekşe
+                        Color(0xFF480CA8), // [Color] Mavi-Mor
+                        Color(0xFF4CC9F0)  // [Color] Gökyüzü Camgöbeği
+                    )
+                )
+                drawRect(brush = skyBrush, topLeft = Offset(0f, 0f), size = Size(width, height)) // [Large-Screen Scaling] Span entire 3000f x 1080f world
+
+                // 2. Parıldayan Yıldızlar (Twinkling Stars distributed across 3000f width)
+                val starPoints = listOf(
+                    Offset(width * 0.05f, height * 0.12f),
+                    Offset(width * 0.12f, height * 0.06f),
+                    Offset(width * 0.20f, height * 0.18f),
+                    Offset(width * 0.30f, height * 0.10f),
+                    Offset(width * 0.40f, height * 0.15f),
+                    Offset(width * 0.50f, height * 0.08f),
+                    Offset(width * 0.60f, height * 0.22f),
+                    Offset(width * 0.70f, height * 0.12f),
+                    Offset(width * 0.80f, height * 0.16f),
+                    Offset(width * 0.90f, height * 0.09f),
+                    Offset(width * 0.96f, height * 0.20f)
+                )
+                starPoints.forEachIndexed { index, starPos ->
+                    val alpha = (0.4f + 0.6f * kotlin.math.sin(animTime * 3f + index)).coerceIn(0.1f, 1f)
+                    drawCircle(
+                        color = Color(0xFFFFE66D).copy(alpha = alpha),
+                        radius = 4f + (index % 2), // [Character & Object Scaling] Slightly larger stars for TV visibility
+                        center = starPos
+                    )
+                }
+
+                // 3. Paralaks Kayan Bulutlar (Parallax Floating Clouds spanning 3000f width)
+                val cloud1X = (animTime * 22f) % (width + 400f) - 200f
+                val cloud2X = (animTime * 14f + 600f) % (width + 500f) - 250f
+                val cloud3X = (animTime * 18f + 1400f) % (width + 450f) - 200f
+                drawCloud(cloud1X, height * 0.12f, 220f, 75f, Color.White.copy(alpha = 0.25f)) // [Large-Screen Scaling] Expanded cloud 1 across large world
+                drawCloud(cloud2X, height * 0.28f, 260f, 90f, Color.White.copy(alpha = 0.20f)) // [Large-Screen Scaling] Expanded cloud 2 across large world
+                drawCloud(cloud3X, height * 0.18f, 240f, 80f, Color.White.copy(alpha = 0.22f)) // [Large-Screen Scaling] Expanded cloud 3 across large world
+
+                // 4. Gökyüzündeki Animasyonlu Gökkuşağı Kemerleri (Multiple Rainbow Arcs across the landscape)
+                val rainbowColors = listOf(
+                    Color(0xFFEF233C).copy(alpha = 0.35f),
+                    Color(0xFFFB8500).copy(alpha = 0.35f),
+                    Color(0xFFFFB703).copy(alpha = 0.35f),
+                    Color(0xFF52B788).copy(alpha = 0.35f),
+                    Color(0xFF4CC9F0).copy(alpha = 0.35f),
+                    Color(0xFF4361EE).copy(alpha = 0.35f),
+                    Color(0xFF7209B7).copy(alpha = 0.35f)
+                )
+                val arcCenters = listOf(width * 0.25f, width * 0.60f, width * 0.88f) // [Large-Screen Scaling] Multiple rainbow arc positions across 3000f width
+                arcCenters.forEach { arcCenterX ->
+                    val arcRadiusBase = 450f
+                    rainbowColors.forEachIndexed { index, color ->
+                        val radius = arcRadiusBase + index * 18f + kotlin.math.sin(animTime * 0.5f + index * 0.3f) * 10f
+                        drawArc(
+                            color = color,
+                            startAngle = 180f,
+                            sweepAngle = 180f,
+                            useCenter = false,
+                            topLeft = Offset(arcCenterX - radius, height * 0.1f - radius),
+                            size = Size(radius * 2f, radius * 2f),
+                            style = Stroke(width = 14f, cap = StrokeCap.Round) // [Large-Screen Scaling] Thicker rainbow stroke for large TV viewing
                         )
                     }
                 }
 
-                // [UI Component] Aktif Bilgi Mesajı Banner'ı
-                AnimatedVisibility(
-                    visible = message != null,
-                    enter = fadeIn(),
-                    exit = fadeOut()
-                ) {
-                    if (message != null) {
-                        Surface(
-                            color = Color(0xFFFFE66D),
-                            shape = RoundedCornerShape(12.dp),
-                            shadowElevation = 8.dp
-                        ) {
-                            Text(
-                                text = message!!,
-                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
-                                fontSize = 16.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = Color(0xFF1A1A2E)
+                // 5. Farklı Katmanlardaki Zeminleri, Lav Çukurlarını ve Asılı Platformları Çizme
+                gameEngine.platforms.forEach { plat ->
+                    if (plat.type == PlatformType.LAVA_PIT) {
+                        // [Lava Pit Rendering] Gaps arasındaki parlak ateş ve lav çukurları
+                        // 1. Lav çukurunun üstündeki boşluğa vuran sıcak parıltı (Heat Glow)
+                        val glowGradient = Brush.verticalGradient(
+                            colors = listOf(Color.Transparent, Color(0xFFFF5400).copy(alpha = 0.35f)),
+                            startY = plat.y - 60f,
+                            endY = plat.y
+                        )
+                        drawRect(
+                            brush = glowGradient,
+                            topLeft = Offset(plat.x, plat.y - 60f),
+                            size = Size(plat.width, 60f)
+                        )
+
+                        // 2. Lav gövdesi (Çok katmanlı akkor magma vertical gradient)
+                        val lavaGradient = Brush.verticalGradient(
+                            colors = listOf(
+                                Color(0xFFFFF07C), // Sarı akkor yüzey (Sıcak ısı)
+                                Color(0xFFFF5400), // Canlı turuncu magma
+                                Color(0xFFD90429), // Derin kırmızı lav
+                                Color(0xFF4A0008)  // Derin volkanik taban
+                            ),
+                            startY = plat.y,
+                            endY = plat.y + plat.height
+                        )
+                        drawRoundRect(
+                            brush = lavaGradient,
+                            topLeft = Offset(plat.x, plat.y),
+                            size = Size(plat.width, plat.height),
+                            cornerRadius = androidx.compose.ui.geometry.CornerRadius(10f, 10f)
+                        )
+
+                        // 3. Dalgalanan lav yüzeyi (Animasyonlu magma köpüğü çizgisi)
+                        val waveOffset = kotlin.math.sin(animTime * 6f + plat.id * 1.5f) * 4f
+                        drawRoundRect(
+                            color = Color(0xFFFFE66D).copy(alpha = 0.85f),
+                            topLeft = Offset(plat.x, plat.y + waveOffset),
+                            size = Size(plat.width, 8f),
+                            cornerRadius = androidx.compose.ui.geometry.CornerRadius(4f, 4f)
+                        )
+
+                        // 4. Lav kabarcıkları (Molten Bubbles)
+                        for (i in 0 until 3) {
+                            val bubbleX = plat.x + (plat.width / 4f) * (i + 1) + kotlin.math.sin(animTime * 3.5f + i * 2f) * 12f
+                            val bubbleY = plat.y + 18f + ((animTime * 25f + i * 28f) % 45f)
+                            drawCircle(
+                                color = Color(0xFFFFF3B0).copy(alpha = 0.85f),
+                                radius = 4f + (i % 2) * 2f,
+                                center = Offset(bubbleX, bubbleY)
                             )
+                        }
+
+                        // 5. Havaya yükselen lav kıvılcımları (Embers / Sparks)
+                        for (i in 0 until 2) {
+                            val sparkX = plat.x + 20f + ((i * 55f + animTime * 30f) % plat.width)
+                            val sparkY = plat.y - 6f - ((animTime * 25f + i * 25f) % 40f)
+                            drawCircle(
+                                color = Color(0xFFFFB703).copy(alpha = 0.75f),
+                                radius = 2.5f,
+                                center = Offset(sparkX, sparkY)
+                            )
+                        }
+                    } else {
+                        // Katı Platformlar: Zemin Katmanları veya Havada Asılı Platformlar
+                        if (plat.height > 60f) {
+                            // [Multi-Layer Ground Tier] Farklı katmanlardaki derin zemin blokları
+                            // Katman C: En alt derin bazalt/kaya katmanı (Bedrock)
+                            val bedrockGradient = Brush.verticalGradient(
+                                colors = listOf(Color(0xFF281E3B), Color(0xFF140D22)),
+                                startY = plat.y + 70f,
+                                endY = plat.y + plat.height
+                            )
+                            drawRoundRect(
+                                brush = bedrockGradient,
+                                topLeft = Offset(plat.x, plat.y + 70f),
+                                size = Size(plat.width, plat.height - 70f),
+                                cornerRadius = androidx.compose.ui.geometry.CornerRadius(8f, 8f)
+                            )
+
+                            // Katman B: Orta kristal/toprak tabakası (Strata)
+                            val strataGradient = Brush.verticalGradient(
+                                colors = listOf(Color(0xFF5A189A), Color(0xFF3C096C)),
+                                startY = plat.y + 24f,
+                                endY = plat.y + 70f
+                            )
+                            drawRect(
+                                brush = strataGradient,
+                                topLeft = Offset(plat.x, plat.y + 24f),
+                                size = Size(plat.width, 46f)
+                            )
+                            drawLine(
+                                color = Color(0xFF7B2CBF).copy(alpha = 0.7f),
+                                start = Offset(plat.x, plat.y + 46f),
+                                end = Offset(plat.x + plat.width, plat.y + 46f),
+                                strokeWidth = 3f
+                            )
+
+                            // Katman A: Üst altın zemin yüzeyi (Top Golden Crust)
+                            val capGradient = Brush.verticalGradient(
+                                colors = listOf(Color(0xFFFFE066), Color(0xFFFFB703)),
+                                startY = plat.y,
+                                endY = plat.y + 24f
+                            )
+                            drawRoundRect(
+                                brush = capGradient,
+                                topLeft = Offset(plat.x, plat.y),
+                                size = Size(plat.width, 24f),
+                                cornerRadius = androidx.compose.ui.geometry.CornerRadius(10f, 10f)
+                            )
+                            // Üst parlama çizgisi
+                            drawLine(
+                                color = Color.White.copy(alpha = 0.8f),
+                                start = Offset(plat.x + 8f, plat.y + 3f),
+                                end = Offset(plat.x + plat.width - 8f, plat.y + 3f),
+                                strokeWidth = 3f,
+                                cap = StrokeCap.Round
+                            )
+                            // Uçurum yan gölgeleri (Lava boşluğuna bakan dikey kenarlar)
+                            drawLine(
+                                color = Color.Black.copy(alpha = 0.45f),
+                                start = Offset(plat.x + 2f, plat.y),
+                                end = Offset(plat.x + 2f, plat.y + plat.height),
+                                strokeWidth = 4f
+                            )
+                            drawLine(
+                                color = Color.Black.copy(alpha = 0.45f),
+                                start = Offset(plat.x + plat.width - 2f, plat.y),
+                                end = Offset(plat.x + plat.width - 2f, plat.y + plat.height),
+                                strokeWidth = 4f
+                            )
+                        } else {
+                            // [Floating Platforms] Havada asılı bulut, şeker veya altın köprüler
+                            when (plat.type) {
+                                PlatformType.RAINBOW_CLOUD -> {
+                                    val cloudBrush = Brush.verticalGradient(
+                                        colors = listOf(Color.White, Color(0xFFE2EAFc)),
+                                        startY = plat.y,
+                                        endY = plat.y + plat.height
+                                    )
+                                    drawRoundRect(
+                                        brush = cloudBrush,
+                                        topLeft = Offset(plat.x, plat.y),
+                                        size = Size(plat.width, plat.height),
+                                        cornerRadius = androidx.compose.ui.geometry.CornerRadius(15f, 15f)
+                                    )
+                                    // Bulut altı gökkuşağı parıltısı
+                                    drawRoundRect(
+                                        color = Color(0xFFC77DFF).copy(alpha = 0.4f),
+                                        topLeft = Offset(plat.x + 10f, plat.y + plat.height - 6f),
+                                        size = Size(plat.width - 20f, 4f),
+                                        cornerRadius = androidx.compose.ui.geometry.CornerRadius(2f, 2f)
+                                    )
+                                }
+                                PlatformType.CANDY_LEDGE -> {
+                                    val candyBrush = Brush.horizontalGradient(
+                                        colors = listOf(Color(0xFFFF758F), Color(0xFFFF4D6D), Color(0xFFFF758F)),
+                                        startX = plat.x,
+                                        endX = plat.x + plat.width
+                                    )
+                                    drawRoundRect(
+                                        brush = candyBrush,
+                                        topLeft = Offset(plat.x, plat.y),
+                                        size = Size(plat.width, plat.height),
+                                        cornerRadius = androidx.compose.ui.geometry.CornerRadius(10f, 10f)
+                                    )
+                                    // Şeker süsleme çizgisi
+                                    drawLine(
+                                        color = Color.White.copy(alpha = 0.7f),
+                                        start = Offset(plat.x + 10f, plat.y + 5f),
+                                        end = Offset(plat.x + plat.width - 10f, plat.y + 5f),
+                                        strokeWidth = 3f,
+                                        cap = StrokeCap.Round
+                                    )
+                                }
+                                else -> {
+                                    val blockBrush = Brush.verticalGradient(
+                                        colors = listOf(Color(0xFFFFD166), Color(0xFFF77F00)),
+                                        startY = plat.y,
+                                        endY = plat.y + plat.height
+                                    )
+                                    drawRoundRect(
+                                        brush = blockBrush,
+                                        topLeft = Offset(plat.x, plat.y),
+                                        size = Size(plat.width, plat.height),
+                                        cornerRadius = androidx.compose.ui.geometry.CornerRadius(10f, 10f)
+                                    )
+                                }
+                            }
                         }
                     }
                 }
 
-                // [UI Component] Skor Gösterge Paneli Surface
-                Surface(
-                    color = Color(0xFF1F4068).copy(alpha = 0.85f),
-                    shape = RoundedCornerShape(12.dp),
-                    border = BorderStroke(1.5.dp, Color(0xFFFFE66D))
+                // 6. Toplanabilir Objeleri Çizme (Render Collectibles: Yıldız, Elmas, Kristal)
+                collectibles.forEach { c ->
+                    if (!c.collected) {
+                        val cx = c.x + 22f
+                        val cy = c.y + 22f + kotlin.math.sin(animTime * 4f + c.id) * 6f
+                        when (c.type) {
+                            CollectibleType.RAINBOW_STAR -> {
+                                drawCircle(Color(0xFFFFE66D), radius = 20f, center = Offset(cx, cy)) // [Character & Object Scaling] Larger star radius (20f) for TV
+                                drawCircle(Color.White, radius = 10f, center = Offset(cx, cy))       // [Character & Object Scaling] Larger inner glow (10f)
+                            }
+                            CollectibleType.MAGIC_DIAMOND -> {
+                                drawPath(Path().apply {
+                                    moveTo(cx, cy - 20f)
+                                    lineTo(cx + 18f, cy)
+                                    lineTo(cx, cy + 20f)
+                                    lineTo(cx - 18f, cy)
+                                    close()
+                                }, color = Color(0xFF4CC9F0)) // [Character & Object Scaling] Larger diamond size for TV
+                            }
+                            CollectibleType.UNICORN_CRYSTAL -> {
+                                drawPath(Path().apply {
+                                    moveTo(cx, cy - 22f)
+                                    lineTo(cx + 15f, cy - 5f)
+                                    lineTo(cx + 10f, cy + 20f)
+                                    lineTo(cx - 10f, cy + 20f)
+                                    lineTo(cx - 15f, cy - 5f)
+                                    close()
+                                }, color = Color(0xFFB5179E)) // [Character & Object Scaling] Larger crystal size for TV
+                            }
+                        }
+                    }
+                }
+
+                // 7. Yardımcı Varlıkları Çizme (Kedi ve Baykuş)
+                entities.forEach { e ->
+                    if (e.isAlive) {
+                        if (e.type == EntityType.CAT) {
+                            drawCat(e.x, e.y, animTime)
+                        } else {
+                            drawOwl(e.x, e.y, animTime)
+                        }
+                    }
+                }
+
+                // 8. Özel Karakter Avatarını Çizme (Burçin ve Sihirli Asası - Scaled up for TV)
+                drawBurcin(playerState.x, playerState.y, playerState.facingRight, animTime)
+            }
+        }
+
+        // [UI Overlay] TV-Optimize Edilmiş HUD (Üst Bilgi Çubuğu Overlay)
+        Row(
+            modifier = Modifier
+                .align(Alignment.TopCenter)
+                .fillMaxWidth()
+                .padding(horizontal = 24.dp, vertical = 20.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            // [UI Component] Bölüm ve Can Gösterge Paneli Surface
+            Surface(
+                color = Color(0xFF1F4068).copy(alpha = 0.85f),
+                shape = RoundedCornerShape(12.dp),
+                border = BorderStroke(1.5.dp, Color(0xFFFFE66D))
+            ) {
+                Row(
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                    horizontalArrangement = Arrangement.spacedBy(16.dp),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        text = "Skor: $score ✨",
-                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                        text = "🌈 Bölüm $level",
                         fontSize = 18.sp,
                         fontWeight = FontWeight.Bold,
                         color = Color(0xFFFFE66D)
                     )
+                    Text(
+                        text = "Can: ${"❤️".repeat(lives)}",
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White
+                    )
                 }
             }
 
-            // [UI Component] Zengin Canvas Oyun Tahtası (Camera Translated Viewport)
-            Box(
-                modifier = Modifier
-                    .weight(1f)
-                    .fillMaxWidth()
-                    .padding(vertical = 8.dp)
-                    .clip(RoundedCornerShape(16.dp))
-                    .border(2.dp, Color(0xFFFFE66D).copy(alpha = 0.7f), RoundedCornerShape(16.dp))
+            // [UI Component] Aktif Bilgi Mesajı Banner'ı
+            AnimatedVisibility(
+                visible = message != null,
+                enter = fadeIn(),
+                exit = fadeOut()
             ) {
-                Canvas(modifier = Modifier.fillMaxSize()) {
-                    val width = gameEngine.worldWidth
-                    val height = gameEngine.worldHeight
-
-                    // [Camera Translation] Apply camera translation (-cameraX, -cameraY) to track the player across the large 3000f landscape
-                    translate(left = -cameraX, top = -cameraY) {
-
-                        // 1. Çok Duraklı Gökkuşağı Degrade Gökyüzü (Sky Brush spanning 3000f world width)
-                        val skyBrush = Brush.verticalGradient(
-                            colors = listOf(
-                                Color(0xFF240046), // [Color] Koyu İndigo
-                                Color(0xFF3C096C), // [Color] Mor
-                                Color(0xFF560BAD), // [Color] Menekşe
-                                Color(0xFF480CA8), // [Color] Mavi-Mor
-                                Color(0xFF4CC9F0)  // [Color] Gökyüzü Camgöbeği
-                            )
+                if (message != null) {
+                    Surface(
+                        color = Color(0xFFFFE66D),
+                        shape = RoundedCornerShape(12.dp),
+                        shadowElevation = 8.dp
+                    ) {
+                        Text(
+                            text = message!!,
+                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color(0xFF1A1A2E)
                         )
-                        drawRect(brush = skyBrush, topLeft = Offset(0f, 0f), size = Size(width, height)) // [Large-Screen Scaling] Span entire 3000f x 1080f world
-
-                        // 2. Parıldayan Yıldızlar (Twinkling Stars distributed across 3000f width)
-                        val starPoints = listOf(
-                            Offset(width * 0.05f, height * 0.12f),
-                            Offset(width * 0.12f, height * 0.06f),
-                            Offset(width * 0.20f, height * 0.18f),
-                            Offset(width * 0.30f, height * 0.10f),
-                            Offset(width * 0.40f, height * 0.15f),
-                            Offset(width * 0.50f, height * 0.08f),
-                            Offset(width * 0.60f, height * 0.22f),
-                            Offset(width * 0.70f, height * 0.12f),
-                            Offset(width * 0.80f, height * 0.16f),
-                            Offset(width * 0.90f, height * 0.09f),
-                            Offset(width * 0.96f, height * 0.20f)
-                        )
-                        starPoints.forEachIndexed { index, starPos ->
-                            val alpha = (0.4f + 0.6f * kotlin.math.sin(animTime * 3f + index)).coerceIn(0.1f, 1f)
-                            drawCircle(
-                                color = Color(0xFFFFE66D).copy(alpha = alpha),
-                                radius = 4f + (index % 2), // [Character & Object Scaling] Slightly larger stars for TV visibility
-                                center = starPos
-                            )
-                        }
-
-                        // 3. Paralaks Kayan Bulutlar (Parallax Floating Clouds spanning 3000f width)
-                        val cloud1X = (animTime * 22f) % (width + 400f) - 200f
-                        val cloud2X = (animTime * 14f + 600f) % (width + 500f) - 250f
-                        val cloud3X = (animTime * 18f + 1400f) % (width + 450f) - 200f
-                        drawCloud(cloud1X, height * 0.12f, 220f, 75f, Color.White.copy(alpha = 0.25f)) // [Large-Screen Scaling] Expanded cloud 1 across large world
-                        drawCloud(cloud2X, height * 0.28f, 260f, 90f, Color.White.copy(alpha = 0.20f)) // [Large-Screen Scaling] Expanded cloud 2 across large world
-                        drawCloud(cloud3X, height * 0.18f, 240f, 80f, Color.White.copy(alpha = 0.22f)) // [Large-Screen Scaling] Expanded cloud 3 across large world
-
-                        // 4. Gökyüzündeki Animasyonlu Gökkuşağı Kemerleri (Multiple Rainbow Arcs across the landscape)
-                        val rainbowColors = listOf(
-                            Color(0xFFEF233C).copy(alpha = 0.35f),
-                            Color(0xFFFB8500).copy(alpha = 0.35f),
-                            Color(0xFFFFB703).copy(alpha = 0.35f),
-                            Color(0xFF52B788).copy(alpha = 0.35f),
-                            Color(0xFF4CC9F0).copy(alpha = 0.35f),
-                            Color(0xFF4361EE).copy(alpha = 0.35f),
-                            Color(0xFF7209B7).copy(alpha = 0.35f)
-                        )
-                        val arcCenters = listOf(width * 0.25f, width * 0.60f, width * 0.88f) // [Large-Screen Scaling] Multiple rainbow arc positions across 3000f width
-                        arcCenters.forEach { arcCenterX ->
-                            val arcRadiusBase = 450f
-                            rainbowColors.forEachIndexed { index, color ->
-                                val radius = arcRadiusBase + index * 18f + kotlin.math.sin(animTime * 0.5f + index * 0.3f) * 10f
-                                drawArc(
-                                    color = color,
-                                    startAngle = 180f,
-                                    sweepAngle = 180f,
-                                    useCenter = false,
-                                    topLeft = Offset(arcCenterX - radius, height * 0.1f - radius),
-                                    size = Size(radius * 2f, radius * 2f),
-                                    style = Stroke(width = 14f, cap = StrokeCap.Round) // [Large-Screen Scaling] Thicker rainbow stroke for large TV viewing
-                                )
-                            }
-                        }
-
-                        // 5. Farklı Katmanlardaki Zeminleri, Lav Çukurlarını ve Asılı Platformları Çizme
-                        gameEngine.platforms.forEach { plat ->
-                            if (plat.type == PlatformType.LAVA_PIT) {
-                                // [Lava Pit Rendering] Gaps arasındaki parlak ateş ve lav çukurları
-                                // 1. Lav çukurunun üstündeki boşluğa vuran sıcak parıltı (Heat Glow)
-                                val glowGradient = Brush.verticalGradient(
-                                    colors = listOf(Color.Transparent, Color(0xFFFF5400).copy(alpha = 0.35f)),
-                                    startY = plat.y - 60f,
-                                    endY = plat.y
-                                )
-                                drawRect(
-                                    brush = glowGradient,
-                                    topLeft = Offset(plat.x, plat.y - 60f),
-                                    size = Size(plat.width, 60f)
-                                )
-
-                                // 2. Lav gövdesi (Çok katmanlı akkor magma vertical gradient)
-                                val lavaGradient = Brush.verticalGradient(
-                                    colors = listOf(
-                                        Color(0xFFFFF07C), // Sarı akkor yüzey (Sıcak ısı)
-                                        Color(0xFFFF5400), // Canlı turuncu magma
-                                        Color(0xFFD90429), // Derin kırmızı lav
-                                        Color(0xFF4A0008)  // Derin volkanik taban
-                                    ),
-                                    startY = plat.y,
-                                    endY = plat.y + plat.height
-                                )
-                                drawRoundRect(
-                                    brush = lavaGradient,
-                                    topLeft = Offset(plat.x, plat.y),
-                                    size = Size(plat.width, plat.height),
-                                    cornerRadius = androidx.compose.ui.geometry.CornerRadius(10f, 10f)
-                                )
-
-                                // 3. Dalgalanan lav yüzeyi (Animasyonlu magma köpüğü çizgisi)
-                                val waveOffset = kotlin.math.sin(animTime * 6f + plat.id * 1.5f) * 4f
-                                drawRoundRect(
-                                    color = Color(0xFFFFE66D).copy(alpha = 0.85f),
-                                    topLeft = Offset(plat.x, plat.y + waveOffset),
-                                    size = Size(plat.width, 8f),
-                                    cornerRadius = androidx.compose.ui.geometry.CornerRadius(4f, 4f)
-                                )
-
-                                // 4. Lav kabarcıkları (Molten Bubbles)
-                                for (i in 0 until 3) {
-                                    val bubbleX = plat.x + (plat.width / 4f) * (i + 1) + kotlin.math.sin(animTime * 3.5f + i * 2f) * 12f
-                                    val bubbleY = plat.y + 18f + ((animTime * 25f + i * 28f) % 45f)
-                                    drawCircle(
-                                        color = Color(0xFFFFF3B0).copy(alpha = 0.85f),
-                                        radius = 4f + (i % 2) * 2f,
-                                        center = Offset(bubbleX, bubbleY)
-                                    )
-                                }
-
-                                // 5. Havaya yükselen lav kıvılcımları (Embers / Sparks)
-                                for (i in 0 until 2) {
-                                    val sparkX = plat.x + 20f + ((i * 55f + animTime * 30f) % plat.width)
-                                    val sparkY = plat.y - 6f - ((animTime * 25f + i * 25f) % 40f)
-                                    drawCircle(
-                                        color = Color(0xFFFFB703).copy(alpha = 0.75f),
-                                        radius = 2.5f,
-                                        center = Offset(sparkX, sparkY)
-                                    )
-                                }
-                            } else {
-                                // Katı Platformlar: Zemin Katmanları veya Havada Asılı Platformlar
-                                if (plat.height > 60f) {
-                                    // [Multi-Layer Ground Tier] Farklı katmanlardaki derin zemin blokları
-                                    // Katman C: En alt derin bazalt/kaya katmanı (Bedrock)
-                                    val bedrockGradient = Brush.verticalGradient(
-                                        colors = listOf(Color(0xFF281E3B), Color(0xFF140D22)),
-                                        startY = plat.y + 70f,
-                                        endY = plat.y + plat.height
-                                    )
-                                    drawRoundRect(
-                                        brush = bedrockGradient,
-                                        topLeft = Offset(plat.x, plat.y + 70f),
-                                        size = Size(plat.width, plat.height - 70f),
-                                        cornerRadius = androidx.compose.ui.geometry.CornerRadius(8f, 8f)
-                                    )
-
-                                    // Katman B: Orta kristal/toprak tabakası (Strata)
-                                    val strataGradient = Brush.verticalGradient(
-                                        colors = listOf(Color(0xFF5A189A), Color(0xFF3C096C)),
-                                        startY = plat.y + 24f,
-                                        endY = plat.y + 70f
-                                    )
-                                    drawRect(
-                                        brush = strataGradient,
-                                        topLeft = Offset(plat.x, plat.y + 24f),
-                                        size = Size(plat.width, 46f)
-                                    )
-                                    drawLine(
-                                        color = Color(0xFF7B2CBF).copy(alpha = 0.7f),
-                                        start = Offset(plat.x, plat.y + 46f),
-                                        end = Offset(plat.x + plat.width, plat.y + 46f),
-                                        strokeWidth = 3f
-                                    )
-
-                                    // Katman A: Üst altın zemin yüzeyi (Top Golden Crust)
-                                    val capGradient = Brush.verticalGradient(
-                                        colors = listOf(Color(0xFFFFE066), Color(0xFFFFB703)),
-                                        startY = plat.y,
-                                        endY = plat.y + 24f
-                                    )
-                                    drawRoundRect(
-                                        brush = capGradient,
-                                        topLeft = Offset(plat.x, plat.y),
-                                        size = Size(plat.width, 24f),
-                                        cornerRadius = androidx.compose.ui.geometry.CornerRadius(10f, 10f)
-                                    )
-                                    // Üst parlama çizgisi
-                                    drawLine(
-                                        color = Color.White.copy(alpha = 0.8f),
-                                        start = Offset(plat.x + 8f, plat.y + 3f),
-                                        end = Offset(plat.x + plat.width - 8f, plat.y + 3f),
-                                        strokeWidth = 3f,
-                                        cap = StrokeCap.Round
-                                    )
-                                    // Uçurum yan gölgeleri (Lava boşluğuna bakan dikey kenarlar)
-                                    drawLine(
-                                        color = Color.Black.copy(alpha = 0.45f),
-                                        start = Offset(plat.x + 2f, plat.y),
-                                        end = Offset(plat.x + 2f, plat.y + plat.height),
-                                        strokeWidth = 4f
-                                    )
-                                    drawLine(
-                                        color = Color.Black.copy(alpha = 0.45f),
-                                        start = Offset(plat.x + plat.width - 2f, plat.y),
-                                        end = Offset(plat.x + plat.width - 2f, plat.y + plat.height),
-                                        strokeWidth = 4f
-                                    )
-                                } else {
-                                    // [Floating Platforms] Havada asılı bulut, şeker veya altın köprüler
-                                    when (plat.type) {
-                                        PlatformType.RAINBOW_CLOUD -> {
-                                            val cloudBrush = Brush.verticalGradient(
-                                                colors = listOf(Color.White, Color(0xFFE2EAFc)),
-                                                startY = plat.y,
-                                                endY = plat.y + plat.height
-                                            )
-                                            drawRoundRect(
-                                                brush = cloudBrush,
-                                                topLeft = Offset(plat.x, plat.y),
-                                                size = Size(plat.width, plat.height),
-                                                cornerRadius = androidx.compose.ui.geometry.CornerRadius(15f, 15f)
-                                            )
-                                            // Bulut altı gökkuşağı parıltısı
-                                            drawRoundRect(
-                                                color = Color(0xFFC77DFF).copy(alpha = 0.4f),
-                                                topLeft = Offset(plat.x + 10f, plat.y + plat.height - 6f),
-                                                size = Size(plat.width - 20f, 4f),
-                                                cornerRadius = androidx.compose.ui.geometry.CornerRadius(2f, 2f)
-                                            )
-                                        }
-                                        PlatformType.CANDY_LEDGE -> {
-                                            val candyBrush = Brush.horizontalGradient(
-                                                colors = listOf(Color(0xFFFF758F), Color(0xFFFF4D6D), Color(0xFFFF758F)),
-                                                startX = plat.x,
-                                                endX = plat.x + plat.width
-                                            )
-                                            drawRoundRect(
-                                                brush = candyBrush,
-                                                topLeft = Offset(plat.x, plat.y),
-                                                size = Size(plat.width, plat.height),
-                                                cornerRadius = androidx.compose.ui.geometry.CornerRadius(10f, 10f)
-                                            )
-                                            // Şeker süsleme çizgisi
-                                            drawLine(
-                                                color = Color.White.copy(alpha = 0.7f),
-                                                start = Offset(plat.x + 10f, plat.y + 5f),
-                                                end = Offset(plat.x + plat.width - 10f, plat.y + 5f),
-                                                strokeWidth = 3f,
-                                                cap = StrokeCap.Round
-                                            )
-                                        }
-                                        else -> {
-                                            val blockBrush = Brush.verticalGradient(
-                                                colors = listOf(Color(0xFFFFD166), Color(0xFFF77F00)),
-                                                startY = plat.y,
-                                                endY = plat.y + plat.height
-                                            )
-                                            drawRoundRect(
-                                                brush = blockBrush,
-                                                topLeft = Offset(plat.x, plat.y),
-                                                size = Size(plat.width, plat.height),
-                                                cornerRadius = androidx.compose.ui.geometry.CornerRadius(10f, 10f)
-                                            )
-                                        }
-                                    }
-                                }
-                            }
-                        }
-
-                        // 6. Toplanabilir Objeleri Çizme (Render Collectibles: Yıldız, Elmas, Kristal)
-                        collectibles.forEach { c ->
-                            if (!c.collected) {
-                                val cx = c.x + 22f
-                                val cy = c.y + 22f + kotlin.math.sin(animTime * 4f + c.id) * 6f
-                                when (c.type) {
-                                    CollectibleType.RAINBOW_STAR -> {
-                                        drawCircle(Color(0xFFFFE66D), radius = 20f, center = Offset(cx, cy)) // [Character & Object Scaling] Larger star radius (20f) for TV
-                                        drawCircle(Color.White, radius = 10f, center = Offset(cx, cy))       // [Character & Object Scaling] Larger inner glow (10f)
-                                    }
-                                    CollectibleType.MAGIC_DIAMOND -> {
-                                        drawPath(Path().apply {
-                                            moveTo(cx, cy - 20f)
-                                            lineTo(cx + 18f, cy)
-                                            lineTo(cx, cy + 20f)
-                                            lineTo(cx - 18f, cy)
-                                            close()
-                                        }, color = Color(0xFF4CC9F0)) // [Character & Object Scaling] Larger diamond size for TV
-                                    }
-                                    CollectibleType.UNICORN_CRYSTAL -> {
-                                        drawPath(Path().apply {
-                                            moveTo(cx, cy - 22f)
-                                            lineTo(cx + 15f, cy - 5f)
-                                            lineTo(cx + 10f, cy + 20f)
-                                            lineTo(cx - 10f, cy + 20f)
-                                            lineTo(cx - 15f, cy - 5f)
-                                            close()
-                                        }, color = Color(0xFFB5179E)) // [Character & Object Scaling] Larger crystal size for TV
-                                    }
-                                }
-                            }
-                        }
-
-                        // 7. Yardımcı Varlıkları Çizme (Kedi ve Baykuş)
-                        entities.forEach { e ->
-                            if (e.isAlive) {
-                                if (e.type == EntityType.CAT) {
-                                    drawCat(e.x, e.y, animTime)
-                                } else {
-                                    drawOwl(e.x, e.y, animTime)
-                                }
-                            }
-                        }
-
-                        // 8. Özel Karakter Avatarını Çizme (Burçin ve Sihirli Asası - Scaled up for TV)
-                        drawBurcin(playerState.x, playerState.y, playerState.facingRight, animTime)
                     }
                 }
             }
 
-            // [UI Layout] TV Kumandası Tuş Rehberi & Hızlı Aksiyon Butonları Alt Paneli
+            // [UI Component] Skor Gösterge Paneli Surface
+            Surface(
+                color = Color(0xFF1F4068).copy(alpha = 0.85f),
+                shape = RoundedCornerShape(12.dp),
+                border = BorderStroke(1.5.dp, Color(0xFFFFE66D))
+            ) {
+                Text(
+                    text = "Skor: $score ✨",
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color(0xFFFFE66D)
+                )
+            }
+        }
+
+        // [UI Overlay] TV Kumandası Tuş Rehberi & Hızlı Aksiyon Butonları Alt Paneli Overlay
+        Surface(
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .fillMaxWidth()
+                .padding(horizontal = 24.dp, vertical = 16.dp),
+            color = Color(0xFF1F4068).copy(alpha = 0.85f),
+            shape = RoundedCornerShape(12.dp),
+            border = BorderStroke(1.5.dp, Color(0xFFFFE66D).copy(alpha = 0.8f))
+        ) {
             Row(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 8.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
